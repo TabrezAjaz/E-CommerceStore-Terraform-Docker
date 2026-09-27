@@ -1,0 +1,103 @@
+services:
+  mongo:
+    image: mongo:7-jammy
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - ecommerce
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  user-service:
+    build: ./backend/user-service
+    image: ${DOCKERHUB_USERNAME:-tabrezajazdc}/ecommerce-user:latest
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      MONGODB_URI: mongodb://mongo:27017/ecommerce_users
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - ecommerce
+
+  product-service:
+    build: ./backend/product-service
+    image: ${DOCKERHUB_USERNAME:-tabrezajazdc}/ecommerce-product:latest
+    restart: unless-stopped
+    environment:
+      PORT: 3002
+      MONGODB_URI: mongodb://mongo:27017/ecommerce_products
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - ecommerce
+
+  cart-service:
+    build: ./backend/cart-service
+    image: ${DOCKERHUB_USERNAME:-tabrezajazdc}/ecommerce-cart:latest
+    restart: unless-stopped
+    environment:
+      PORT: 3003
+      MONGODB_URI: mongodb://mongo:27017/ecommerce_carts
+      PRODUCT_SERVICE_URL: http://product-service:3002
+    depends_on:
+      mongo:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    networks:
+      - ecommerce
+
+  order-service:
+    build: ./backend/order-service
+    image: ${DOCKERHUB_USERNAME:-tabrezajazdc}/ecommerce-order:latest
+    restart: unless-stopped
+    environment:
+      PORT: 3004
+      MONGODB_URI: mongodb://mongo:27017/ecommerce_orders
+      USER_SERVICE_URL: http://user-service:3001
+      PRODUCT_SERVICE_URL: http://product-service:3002
+      CART_SERVICE_URL: http://cart-service:3003
+    depends_on:
+      mongo:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      cart-service:
+        condition: service_healthy
+    networks:
+      - ecommerce
+
+  frontend:
+    build: ./frontend
+    image: ${DOCKERHUB_USERNAME:-tabrezajazdc}/ecommerce-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      cart-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+    networks:
+      - ecommerce
+
+networks:
+  ecommerce:
+    driver: bridge
+
+volumes:
+  mongo-data:

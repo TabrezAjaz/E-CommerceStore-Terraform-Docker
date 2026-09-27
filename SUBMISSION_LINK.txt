@@ -1,0 +1,15 @@
+Graded Assignment: Deploy a Multi-Service Node.js E-Commerce Application Using Terraform and Docker
+
+Submitted by: Tabrez Ajaz
+
+GitHub Repository:
+https://github.com/TabrezAjaz/E-CommerceStore-Terraform-Docker
+
+Docker Hub Images:
+https://hub.docker.com/r/tabrezajazdc/ecommerce-user
+https://hub.docker.com/r/tabrezajazdc/ecommerce-product
+https://hub.docker.com/r/tabrezajazdc/ecommerce-cart
+https://hub.docker.com/r/tabrezajazdc/ecommerce-order
+https://hub.docker.com/r/tabrezajazdc/ecommerce-frontend
+
+The live AWS URL is intentionally removed after evidence capture to prevent ongoing charges.

@@ -1,0 +1,7 @@
+aws_region         = "ap-south-1"
+aws_profile        = null
+admin_cidr         = "203.0.113.10/32"
+key_name           = "ecommerce-key"
+dockerhub_username = "tabrezajazdc"
+image_tag          = "latest"
+instance_type      = "t3.small"

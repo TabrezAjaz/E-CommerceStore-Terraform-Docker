@@ -1,0 +1,11 @@
+.git
+.github
+.terraform
+terraform
+docs
+scripts
+**/node_modules
+**/npm-debug.log
+*.tfstate*
+*.tfplan
+.env

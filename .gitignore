@@ -137,6 +137,14 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform/terraform.tfvars
+terraform/cloud-init.log
+node_modules/
+npm-debug.log*
 .venv
 env/
 venv/

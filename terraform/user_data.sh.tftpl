@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+exec > >(tee /var/log/ecommerce-bootstrap.log | logger -t ecommerce-bootstrap -s 2>/dev/console) 2>&1
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y ca-certificates curl
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+systemctl enable --now docker
+
+install -d -m 0750 /opt/ecommerce
+JWT_SECRET=$(openssl rand -hex 32)
+cat > /opt/ecommerce/compose.yaml <<'COMPOSE'
+services:
+  mongo:
+    image: mongo:7-jammy
+    restart: unless-stopped
+    volumes: [mongo-data:/data/db]
+    networks: [ecommerce]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  user-service:
+    image: ${dockerhub_username}/ecommerce-user:${image_tag}
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      MONGODB_URI: mongodb://mongo:27017/ecommerce_users
+      JWT_SECRET: "$${JWT_SECRET}"
+    depends_on:
+      mongo: { condition: service_healthy }
+    networks: [ecommerce]
+
+  product-service:
+    image: ${dockerhub_username}/ecommerce-product:${image_tag}
+    restart: unless-stopped
+    environment:
+      PORT: 3002
+      MONGODB_URI: mongodb://mongo:27017/ecommerce_products
+    depends_on:
+      mongo: { condition: service_healthy }
+    networks: [ecommerce]
+
+  cart-service:
+    image: ${dockerhub_username}/ecommerce-cart:${image_tag}
+    restart: unless-stopped
+    environment:
+      PORT: 3003
+      MONGODB_URI: mongodb://mongo:27017/ecommerce_carts
+      PRODUCT_SERVICE_URL: http://product-service:3002
+    depends_on:
+      mongo: { condition: service_healthy }
+      product-service: { condition: service_healthy }
+    networks: [ecommerce]
+
+  order-service:
+    image: ${dockerhub_username}/ecommerce-order:${image_tag}
+    restart: unless-stopped
+    environment:
+      PORT: 3004
+      MONGODB_URI: mongodb://mongo:27017/ecommerce_orders
+      USER_SERVICE_URL: http://user-service:3001
+      PRODUCT_SERVICE_URL: http://product-service:3002
+      CART_SERVICE_URL: http://cart-service:3003
+    depends_on:
+      mongo: { condition: service_healthy }
+      user-service: { condition: service_healthy }
+      product-service: { condition: service_healthy }
+      cart-service: { condition: service_healthy }
+    networks: [ecommerce]
+
+  frontend:
+    image: ${dockerhub_username}/ecommerce-frontend:${image_tag}
+    restart: unless-stopped
+    ports: ["80:80"]
+    depends_on:
+      user-service: { condition: service_healthy }
+      product-service: { condition: service_healthy }
+      cart-service: { condition: service_healthy }
+      order-service: { condition: service_healthy }
+    networks: [ecommerce]
+
+networks:
+  ecommerce: { driver: bridge }
+volumes:
+  mongo-data:
+COMPOSE
+
+cat > /opt/ecommerce/.env <<EOF
+JWT_SECRET=$JWT_SECRET
+EOF
+chmod 0600 /opt/ecommerce/.env
+cd /opt/ecommerce
+docker compose pull
+docker compose up -d
+
+for attempt in $(seq 1 60); do
+  if curl --fail --silent http://127.0.0.1/health >/dev/null; then
+    touch /opt/ecommerce/BOOTSTRAP_COMPLETE
+    exit 0
+  fi
+  sleep 5
+done
+
+docker compose ps
+exit 1

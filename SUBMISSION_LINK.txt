@@ -13,3 +13,5 @@ https://hub.docker.com/r/tabrezajazdc/ecommerce-order
 https://hub.docker.com/r/tabrezajazdc/ecommerce-frontend
 
 The live AWS URL is intentionally removed after evidence capture to prevent ongoing charges.
+
+======> Documentaion is also in the git Repository. <======
